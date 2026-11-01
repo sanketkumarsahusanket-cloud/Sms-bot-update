@@ -267,9 +267,9 @@ def load() -> dict:
                     u["credits"] = 0
                 if "sms_history" not in u:
                     u["sms_history"] = []
-                          if "access_expiry" not in u:
-                  u["access_expiry"] = 0
-                  return data
+                if "access_expiry" not in u:
+                    u["access_expiry"] = 0
+            return data
         except Exception as e:
             log.error(f"Load error: {e}")
     d = _default_data()
@@ -284,12 +284,15 @@ def reg_user(uid: int, name: str, d: dict) -> bool:
     k = str(uid)
     if k not in d["users"]:
         d["users"][k] = {
-            "name": name, "uses": 0, "credits": 0,
+            "name": name,
+            "uses": 0,
+            "credits": 0,
             "joined_at": int(time.time()),
-            "refer_code": None, "referred_by": None,
-            "sms_history": []
-                 "access_expiry": 0
-               }
+            "refer_code": None,
+            "referred_by": None,
+            "sms_history": [],
+            "access_expiry": 0
+        }
         return True
     return False
 
