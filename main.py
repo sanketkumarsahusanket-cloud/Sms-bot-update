@@ -324,7 +324,7 @@ def has_active_access(uid: int, d: dict) -> bool:
     expiry = get_user_access_expiry(uid, d)
     return expiry > 0 and expiry > int(time.time())
     
- def can_use(uid: int, d: dict) -> bool:
+def can_use(uid: int, d: dict) -> bool:
     if is_banned(uid, d):
         return False
     if is_admin(uid, d):
