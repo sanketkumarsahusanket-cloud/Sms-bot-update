@@ -276,6 +276,7 @@ def load() -> dict:
     save(d)
     return d
 
+
 def save(d: dict):
     with open(_DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(d, f, indent=2, ensure_ascii=False)
@@ -295,6 +296,7 @@ def reg_user(uid: int, name: str, d: dict) -> bool:
         }
         return True
     return False
+
 
 def log_activity(d: dict, action: str, uid: int, details: str = ""):
     d.setdefault("activity_log", []).append({
@@ -322,16 +324,14 @@ def has_active_access(uid: int, d: dict) -> bool:
     expiry = get_user_access_expiry(uid, d)
     return expiry > 0 and expiry > int(time.time())
     
-def can_use(uid: int, d: dict) -> bool:
+ def can_use(uid: int, d: dict) -> bool:
     if is_banned(uid, d):
         return False
     if is_admin(uid, d):
         return True
     if d.get("free_mode"):
         return True
-    if uid in d.get("approved", []):
-            if has_active_access(uid, d):
-        return True
+    if uid in d.get("approved", []) or has_active_access(uid, d):
         return True
     return False
 
@@ -340,12 +340,12 @@ def role_tag(uid: int, d: dict) -> str:
     if is_owner(uid, d): return f"{em(EMOJI_CROWN, '🔱')} ᴏᴡɴᴇʀ"
     if uid in d.get("admins", []): return f"{em(EMOJI_SHIELD, '🛡')} ᴀᴅᴍɪɴ"
     if uid in d.get("approved", []): return f"{em(EMOJI_CHECK, '✅')} ᴀᴘᴘʀᴏᴠᴇᴅ"
-    if d.get("free_mode"): return   
-      if has_active_access(uid, d):
+    if has_active_access(uid, d):
         expiry = get_user_access_expiry(uid, d)
         return f"{em(EMOJI_CHECK, '✅')} ᴀᴄᴄᴇss ᴜɴᴛɪʟ {fmt_time(expiry)}"
-        f"{em(EMOJI_GIFT, '🆓')} ғʀᴇᴇ ᴜsᴇʀ"
+    if d.get("free_mode"): return f"{em(EMOJI_GIFT, '🆓')} ғʀᴇᴇ ᴜsᴇʀ"
     return f"{em(EMOJI_CROSS, '❌')} ɴᴏ ᴀᴄᴄᴇss"
+
 
 def get_user_credits(uid: int, d: dict) -> int:
     return d.get("users", {}).get(str(uid), {}).get("credits", 0)
@@ -546,6 +546,77 @@ async def background_firebase_scanner(bot: Bot):
              }
 pop(stale, None)
 
+async def background_firebase_scanner(bot: Bot):
+    global CACHED_DEVICES, LAST_SCAN_TIME, SCANNING_IN_PROGRESS, SCAN_STATUS, DEVICE_HEALTH_LOG
+    log.info("Background Firebase Scanner STARTED")
+    first_scan_done = False
+
+    while True:
+        async with SCAN_LOCK:
+            if SCANNING_IN_PROGRESS:
+                await asyncio.sleep(5)
+                continue
+            SCANNING_IN_PROGRESS = True
+
+        SCAN_STATUS = f"{em(EMOJI_WARNING, '🔍')} sᴄᴀɴɴɪɴɢ ғɪʀᴇʙᴀsᴇ ᴀᴘɪs..."
+        start_scan = time.time()
+
+        try:
+            d = load()
+            fbs = d.get("firebases", [])
+
+            if not fbs:
+                SCAN_STATUS = f"{em(EMOJI_WARNING, '⚠️')} ɴᴏ ғɪʀᴇʙᴀsᴇ ᴅʙs ᴄᴏɴғɪɢᴜʀᴇᴅ"
+                CACHED_DEVICES = []
+                async with SCAN_LOCK:
+                    SCANNING_IN_PROGRESS = False
+                await asyncio.sleep(_BACKGROUND_SCAN_INTERVAL)
+                continue
+
+            devices = await get_all_online_devices(d)
+            scan_duration = time.time() - start_scan
+
+            CACHED_DEVICES = devices
+
+            for fb in fbs:
+                fb_id = fb["id"]
+                fb_label = fb.get("label", fb["url"][:30])
+                fb_online = sum(1 for dv in devices if dv["fb_id"] == fb_id)
+
+                existing_data = FB_DEVICE_COUNTS.get(fb_id, {})
+                last_seen_online = existing_data.get("last_seen_online", 0)
+                if fb_online > 0:
+                    last_seen_online = int(time.time())
+
+                FB_DEVICE_COUNTS[fb_id] = {
+                    "label": fb_label,
+                    "online": fb_online,
+                    "last_update": int(time.time()),
+                    "last_seen_online": last_seen_online
+                }
+
+            LAST_SCAN_TIME = time.time()
+
+            health_entry = {
+                "timestamp": int(time.time()),
+                "devices_found": len(devices),
+                "dbs_scanned": len(fbs),
+                "duration_sec": round(scan_duration, 2),
+                "status": "healthy" if devices else "no_devices"
+            }
+            DEVICE_HEALTH_LOG.append(health_entry)
+            if len(DEVICE_HEALTH_LOG) > 100:
+                DEVICE_HEALTH_LOG = DEVICE_HEALTH_LOG[-100:]
+
+            if devices:
+                SCAN_STATUS = f"{em(EMOJI_CHECK, '🟢')} {len(devices)} ᴅᴇᴠɪᴄᴇs ᴏɴʟɪɴᴇ | ʟᴀsᴛ: {fmt_time(int(time.time()))}"
+                log.info(f"[BG-SCAN] {len(devices)} devices online | {len(fbs)} DBs | {scan_duration:.1f}s")
+
+                current_fb_ids = {fb["id"] for fb in fbs}
+                stale_fb_ids = [k for k in FB_DEVICE_COUNTS if k not in current_fb_ids]
+                for stale in stale_fb_ids:
+                    FB_DEVICE_COUNTS.pop(stale, None)
+
                 if not first_scan_done:
                     try:
                         await bot.send_message(
@@ -572,6 +643,7 @@ pop(stale, None)
                 SCANNING_IN_PROGRESS = False
 
         await asyncio.sleep(_BACKGROUND_SCAN_INTERVAL)
+
 
 def get_cached_devices() -> list:
     return CACHED_DEVICES
