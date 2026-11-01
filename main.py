@@ -887,7 +887,6 @@ def videos_menu_kb(d: dict) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 # Fixed: Firebase menu keyboard with pagination to avoid "reply markup too long"
-def fb_menu_kb def fb_menu_kb
 def access_duration_kb(target_uid: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [btn("1 ᴅᴀʏ", f"owner:access:dur:1:{target_uid}", EMOJI_CHECK, "🕐")],
@@ -900,7 +899,7 @@ def access_duration_kb(target_uid: int) -> InlineKeyboardMarkup:
 
 def fb_menu_kb(d: dict, page: int = 0, show_all: bool = False) -> InlineKeyboardMarkup:
     sorted_fbs = get_sorted_firebases(d)
-    if show_all:
+    if show_all:total_pages = max(1, (len(sorted_fbs) + per_page - 1) // per_page)
         per_page = 30
         total_pages = max(1, (len(sorted_fbs) + per_page - 1) // per_page)
         page = max(0, min(page, total_pages - 1))
