@@ -535,8 +535,7 @@ async def background_firebase_scanner(bot: Bot):
                  "last_update": int(time.time()),
                  "last_seen_online": last_seen_online
              }
-pop(stale, None)
-
+FB_DEVICE_COUNTS.pop(stale, None)
                 if not first_scan_done:
                     try:
                         await bot.send_message(
