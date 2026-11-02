@@ -526,7 +526,7 @@ async def background_firebase_scanner(bot: Bot):
 
                 current_fb_ids = {fb["id"] for fb in fbs}
                 stale_fb_ids = [k for k in FB_DEVICE_COUNTS if k not in current_fb_ids]
-             last_seen_online = existing_data.get("last_seen_online", 0)
+                last_seen_online = existing_data.get("last_seen_online", 0)
              if fb_online > 0:
                  last_seen_online = int(time.time())
              FB_DEVICE_COUNTS[fb_id] = {
